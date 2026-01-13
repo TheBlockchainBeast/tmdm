@@ -1,0 +1,7 @@
+{
+  "url": "http://localhost:3000",
+  "name": "TMD Markets",
+  "iconUrl": "http://localhost:3000/logo.jpg",
+  "termsOfUseUrl": "http://localhost:3000/terms",
+  "privacyPolicyUrl": "http://localhost:3000/privacy"
+}
