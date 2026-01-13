@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { contracts } from '@/config/contracts';
-import { getMultipleTokenPairs, getBestPair } from '@/lib/dexscreener';
+import { getMultipleTokenPairs, getBestPair, type DexScreenerPair } from '@/lib/dexscreener';
 import { getMultipleJettonMetadata } from '@/lib/tonapi';
 import { getWalletJettons, getTonBalance } from '@/lib/tonapi-portfolio';
 
@@ -28,10 +28,45 @@ export async function GET(request: Request) {
       getMultipleTokenPairs('ton', contracts),
     ]);
 
-    // Get TON price
-    const tonPairs = await getMultipleTokenPairs('ton', ['TON']);
-    const tonPair = tonPairs.get('ton')?.[0];
-    const tonPrice = tonPair?.priceUsd ? parseFloat(tonPair.priceUsd) : 5.20;
+    // Get TON price - TON is native token, fetch from CoinGecko (more reliable)
+    let tonPrice = 1.7; // Fallback price
+    let tonPair: DexScreenerPair | null = null;
+    
+    try {
+      // Fetch TON price from CoinGecko API
+      const coingeckoResponse = await fetch(
+        'https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd&include_24hr_change=true',
+        {
+          headers: {
+            'Accept': 'application/json',
+          },
+          next: { revalidate: 60 }, // Cache for 60 seconds
+        }
+      );
+      
+      if (coingeckoResponse.ok) {
+        const data = await coingeckoResponse.json();
+        if (data['the-open-network']?.usd) {
+          tonPrice = data['the-open-network'].usd;
+          // Create a mock pair object for priceChange24h
+          tonPair = {
+            chainId: 'ton',
+            dexId: 'coingecko',
+            url: '',
+            pairAddress: '',
+            baseToken: { address: '', name: 'Toncoin', symbol: 'TON' },
+            quoteToken: { address: '', name: 'USD', symbol: 'USD' },
+            priceNative: '1',
+            priceUsd: tonPrice.toString(),
+            priceChange: { h24: data['the-open-network'].usd_24h_change || 0 },
+            txns: {},
+            volume: {},
+          } as DexScreenerPair;
+        }
+      }
+    } catch (error) {
+      // Use fallback price if fetch fails
+    }
 
     // Process holdings
     const holdings: Array<{
